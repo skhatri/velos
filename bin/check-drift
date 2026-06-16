@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SPEC=$1
+OUT=$2
+OUT_VALUES=$3
+
+if [ -z "$SPEC" ] || [ -z "$OUT" ]; then
+    echo "Usage: check-drift <spec.yaml> <output-compose.yml> [output-values.yaml]"
+    exit 1
+fi
+
+TMP=$(mktemp)
+PYTHON="python3"
+if ! python3 -c "import yaml" &> /dev/null; then
+    VENV_DIR="$DIR/../.venv"
+    if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv "$VENV_DIR"
+        "$VENV_DIR/bin/pip" install pyyaml > /dev/null 2>&1
+    fi
+    PYTHON="$VENV_DIR/bin/python"
+fi
+if [ -n "$OUT_VALUES" ]; then
+    TMP_VALUES=$(mktemp)
+    $PYTHON "$DIR/../generate.py" "$SPEC" "$TMP" "$TMP_VALUES"
+    if ! cmp -s "$TMP" "$OUT" || ! cmp -s "$TMP_VALUES" "$OUT_VALUES"; then
+        echo "❌ Drift detected! Run 'make compile' to fix."
+        rm "$TMP" "$TMP_VALUES"
+        exit 1
+    fi
+    rm "$TMP" "$TMP_VALUES"
+else
+    $PYTHON "$DIR/../generate.py" "$SPEC" "$TMP"
+    if ! cmp -s "$TMP" "$OUT"; then
+        echo "❌ Drift detected in $OUT! Run 'make compile' to fix."
+        rm "$TMP"
+        exit 1
+    fi
+    rm "$TMP"
+fi
+
+echo "✅ No drift detected"
+exit 0
