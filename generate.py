@@ -110,6 +110,23 @@ def generate_values(spec):
                 v_def["replicas"] = helm_def["replicas"]
             if "ingress" in helm_def:
                 v_def["ingress"] = helm_def["ingress"]
+            if "annotations" in helm_def:
+                v_def["annotations"] = helm_def["annotations"]
+            if "initContainers" in helm_def:
+                v_def["initContainers"] = helm_def["initContainers"]
+            if "schedule" in helm_def:
+                v_def["schedule"] = helm_def["schedule"]
+            if "scheduleFromEnv" in helm_def:
+                env_key = helm_def["scheduleFromEnv"]
+                if "env" in v_def and env_key in v_def["env"]:
+                    v_def["schedule"] = v_def["env"][env_key]
+            if "enabled" in helm_def:
+                v_def["enabled"] = helm_def["enabled"]
+            if "enabledFromEnv" in helm_def:
+                env_key = helm_def["enabledFromEnv"]
+                if "env" in v_def and env_key in v_def["env"]:
+                    val = v_def["env"][env_key]
+                    v_def["enabled"] = (str(val).lower() != "false")
                 
         if "image" in s_def:
             v_def["image"] = s_def["image"]

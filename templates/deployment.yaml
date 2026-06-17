@@ -23,21 +23,23 @@ spec:
       {{- fail "global.workspaceRoot must be set to the repo absolute path (make up sets --set global.workspaceRoot=$PWD)" }}
       {{- end }}
       {{- end }}
-      {{- if and $svc.volumes $svc.env (index $svc.env "APP_WEIGHTS") (index $svc.env "RESOURCE_PREFIX") }}
+      {{- if $svc.initContainers }}
       initContainers:
-        - name: wait-app-weights
-          image: busybox:1.36
+      {{- range $ic := $svc.initContainers }}
+        - name: {{ $ic.name }}
+          image: {{ $ic.image }}
+          {{- if $ic.command }}
           command:
-            - sh
-            - -c
-            - |
-              target="{{ index $svc.env "RESOURCE_PREFIX" }}/{{ index $svc.env "APP_WEIGHTS" }}"
-              echo "Waiting for APP_WEIGHTS at ${target}"
-              until test -f "${target}"; do
-                echo "APP_WEIGHTS not ready: ${target}"
-                sleep 5
-              done
-              ls -la "${target}"
+{{ toYaml $ic.command | indent 12 }}
+          {{- end }}
+          {{- if $svc.env }}
+          env:
+          {{- range $key, $val := $svc.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if $svc.volumes }}
           volumeMounts:
           {{- range $i, $vol := $svc.volumes }}
             - name: vol-{{ $i }}
@@ -46,6 +48,8 @@ spec:
               readOnly: true
               {{- end }}
           {{- end }}
+          {{- end }}
+      {{- end }}
       {{- end }}
       containers:
         - name: {{ $svcName | replace "_" "-" }}

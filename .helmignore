@@ -1,0 +1,5 @@
+.venv/
+.git/
+bin/
+generate.py
+README.md

@@ -1,0 +1,82 @@
+{{- range $svcName, $svc := .Values }}
+{{- $enabled := true }}
+{{- if hasKey $svc "enabled" }}
+  {{- if eq ($svc.enabled | toString) "false" }}
+    {{- $enabled = false }}
+  {{- end }}
+{{- end }}
+{{- $schedule := $svc.schedule | default "" }}
+{{- if and (ne $svcName "global") (eq $svc.restart "no") $enabled (not (empty $schedule)) }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $svcName | replace "_" "-" }}
+  labels:
+    app: {{ $svcName | replace "_" "-" }}
+spec:
+  schedule: {{ $schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: {{ $svcName | replace "_" "-" }}
+        spec:
+          restartPolicy: Never
+          enableServiceLinks: false
+          containers:
+            - name: {{ $svcName | replace "_" "-" }}
+              image: {{ $svc.image }}
+              imagePullPolicy: IfNotPresent
+              {{- if $svc.command }}
+              args:
+              {{- if typeIs "string" $svc.command }}
+              {{- range $cmd := splitList " " $svc.command }}
+                - {{ $cmd | quote }}
+              {{- end }}
+              {{- else }}
+              {{- range $cmd := $svc.command }}
+                - {{ $cmd | quote }}
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if $svc.env }}
+              env:
+              {{- range $key, $val := $svc.env }}
+                - name: {{ $key }}
+                  value: {{ $val | quote }}
+              {{- end }}
+              {{- end }}
+              {{- if $svc.resources }}
+              resources:
+{{ toYaml $svc.resources | indent 16 }}
+              {{- end }}
+              {{- if $svc.volumes }}
+              volumeMounts:
+              {{- range $i, $vol := $svc.volumes }}
+                - name: vol-{{ $i }}
+                  mountPath: {{ $vol.mountPath }}
+                  {{- if $vol.readOnly }}
+                  readOnly: true
+                  {{- end }}
+              {{- end }}
+              {{- end }}
+          {{- if $svc.volumes }}
+          volumes:
+          {{- range $i, $vol := $svc.volumes }}
+            - name: vol-{{ $i }}
+              {{- if $vol.type }}
+              {{- if eq $vol.type "emptyDir" }}
+              emptyDir: {}
+              {{- end }}
+              {{- else if $vol.hostPath }}
+              hostPath:
+                path: {{ $.Values.global.workspaceRoot }}/{{ $vol.hostPath }}
+                type: {{ $vol.hostPathType | default "Directory" }}
+              {{- end }}
+          {{- end }}
+          {{- end }}
+{{- end }}
+{{- end }}

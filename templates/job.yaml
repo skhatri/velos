@@ -1,5 +1,12 @@
 {{- range $svcName, $svc := .Values }}
-{{- if and (ne $svcName "global") (eq $svc.restart "no") }}
+{{- $enabled := true }}
+{{- if hasKey $svc "enabled" }}
+  {{- if eq ($svc.enabled | toString) "false" }}
+    {{- $enabled = false }}
+  {{- end }}
+{{- end }}
+{{- $schedule := $svc.schedule | default "" }}
+{{- if and (ne $svcName "global") (eq $svc.restart "no") $enabled (empty $schedule) }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -7,6 +14,10 @@ metadata:
   name: {{ $svcName | replace "_" "-" }}
   labels:
     app: {{ $svcName | replace "_" "-" }}
+  {{- if $svc.annotations }}
+  annotations:
+{{ toYaml $svc.annotations | indent 4 }}
+  {{- end }}
 spec:
   template:
     metadata:
