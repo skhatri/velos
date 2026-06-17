@@ -1,0 +1,23 @@
+{{- range $name, $svc := .Values }}
+{{- if and (ne $name "global") $svc.ports }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name | replace "_" "-" }}
+  namespace: {{ $.Values.global.kubernetes.namespace | default "default" }}
+  labels:
+    app: {{ $name | replace "_" "-" }}
+spec:
+  type: ClusterIP
+  ports:
+  {{- range $portMapping := $svc.ports }}
+    - port: {{ $portMapping | splitList ":" | first | atoi }}
+      targetPort: {{ $portMapping | splitList ":" | last | atoi }}
+      protocol: TCP
+      name: port-{{ $portMapping | splitList ":" | first }}
+  {{- end }}
+  selector:
+    app: {{ $name | replace "_" "-" }}
+{{- end }}
+{{- end }}

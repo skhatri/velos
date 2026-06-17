@@ -159,7 +159,23 @@ def generate_values(spec):
                     rel_path = src[2:] if src.startswith('./') else src
                     abs_path = os.path.abspath(os.path.join(repo_root, rel_path))
                     vol_obj["hostPath"] = rel_path
-                    vol_obj["hostPathType"] = "File" if os.path.isfile(abs_path) else "DirectoryOrCreate"
+                    must_exist_prefixes = (
+                        "iso20022-address-structuring-resources",
+                        "address-fine-tune/output/checkpoints",
+                    )
+                    if any(
+                        rel_path == prefix or rel_path.startswith(prefix + "/")
+                        for prefix in must_exist_prefixes
+                    ):
+                        vol_obj["hostPathType"] = (
+                            "File" if os.path.isfile(abs_path) else "Directory"
+                        )
+                    elif os.path.isfile(abs_path):
+                        vol_obj["hostPathType"] = "File"
+                    elif os.path.isdir(abs_path):
+                        vol_obj["hostPathType"] = "Directory"
+                    else:
+                        vol_obj["hostPathType"] = "DirectoryOrCreate"
                 else:
                     vol_obj["type"] = "emptyDir"
                     vol_obj["name"] = src

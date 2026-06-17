@@ -1,0 +1,110 @@
+{{- range $svcName, $svc := .Values }}
+{{- if and (ne $svcName "global") (ne $svc.restart "no") }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svcName | replace "_" "-" }}
+  labels:
+    app: {{ $svcName | replace "_" "-" }}
+spec:
+  replicas: {{ $svc.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $svcName | replace "_" "-" }}
+  template:
+    metadata:
+      labels:
+        app: {{ $svcName | replace "_" "-" }}
+    spec:
+      enableServiceLinks: false
+      {{- if $svc.volumes }}
+      {{- if not $.Values.global.workspaceRoot }}
+      {{- fail "global.workspaceRoot must be set to the repo absolute path (make up sets --set global.workspaceRoot=$PWD)" }}
+      {{- end }}
+      {{- end }}
+      {{- if and $svc.volumes $svc.env (index $svc.env "APP_WEIGHTS") (index $svc.env "RESOURCE_PREFIX") }}
+      initContainers:
+        - name: wait-app-weights
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              target="{{ index $svc.env "RESOURCE_PREFIX" }}/{{ index $svc.env "APP_WEIGHTS" }}"
+              echo "Waiting for APP_WEIGHTS at ${target}"
+              until test -f "${target}"; do
+                echo "APP_WEIGHTS not ready: ${target}"
+                sleep 5
+              done
+              ls -la "${target}"
+          volumeMounts:
+          {{- range $i, $vol := $svc.volumes }}
+            - name: vol-{{ $i }}
+              mountPath: {{ $vol.mountPath }}
+              {{- if $vol.readOnly }}
+              readOnly: true
+              {{- end }}
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ $svcName | replace "_" "-" }}
+          image: {{ $svc.image }}
+          imagePullPolicy: IfNotPresent
+          {{- if $svc.command }}
+          args:
+          {{- if typeIs "string" $svc.command }}
+          {{- range $cmd := splitList " " $svc.command }}
+            - {{ $cmd | quote }}
+          {{- end }}
+          {{- else }}
+          {{- range $cmd := $svc.command }}
+            - {{ $cmd | quote }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- if $svc.ports }}
+          ports:
+          {{- range $port := $svc.ports }}
+          {{- $parts := split ":" $port }}
+            - containerPort: {{ $parts._1 | int }}
+          {{- end }}
+          {{- end }}
+          {{- if $svc.env }}
+          env:
+          {{- range $key, $val := $svc.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if $svc.resources }}
+          resources:
+{{ toYaml $svc.resources | indent 12 }}
+          {{- end }}
+          {{- if $svc.volumes }}
+          volumeMounts:
+          {{- range $i, $vol := $svc.volumes }}
+            - name: vol-{{ $i }}
+              mountPath: {{ $vol.mountPath }}
+              {{- if $vol.readOnly }}
+              readOnly: true
+              {{- end }}
+          {{- end }}
+          {{- end }}
+      {{- if $svc.volumes }}
+      volumes:
+      {{- range $i, $vol := $svc.volumes }}
+        - name: vol-{{ $i }}
+          {{- if $vol.type }}
+          {{- if eq $vol.type "emptyDir" }}
+          emptyDir: {}
+          {{- end }}
+          {{- else if $vol.hostPath }}
+          hostPath:
+            path: {{ $.Values.global.workspaceRoot }}/{{ $vol.hostPath }}
+            type: {{ $vol.hostPathType | default "Directory" }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,27 @@
+{{- range $name, $svc := .Values }}
+{{- if and (ne $name "global") $svc.ingress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name | replace "_" "-" }}
+  namespace: {{ $.Values.global.kubernetes.namespace | default "default" }}
+  labels:
+    app: {{ $name | replace "_" "-" }}
+spec:
+  ingressClassName: nginx
+  rules:
+  {{- range $host := $svc.ingress.hosts }}
+  - host: {{ $host }}
+    http:
+      paths:
+      - path: {{ $svc.ingress.path | default "/" }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $name | replace "_" "-" }}
+            port:
+              number: {{ (index $svc.ports 0) | splitList ":" | first | atoi }}
+  {{- end }}
+{{- end }}
+{{- end }}
