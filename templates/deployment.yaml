@@ -55,6 +55,18 @@ spec:
         - name: {{ $svcName | replace "_" "-" }}
           image: {{ $svc.image }}
           imagePullPolicy: IfNotPresent
+          {{- if or (hasKey $svc "readOnlyRootFilesystem") (hasKey $svc "runAsUser") (hasKey $svc "runAsNonRoot") }}
+          securityContext:
+            {{- if hasKey $svc "readOnlyRootFilesystem" }}
+            readOnlyRootFilesystem: {{ $svc.readOnlyRootFilesystem }}
+            {{- end }}
+            {{- if hasKey $svc "runAsNonRoot" }}
+            runAsNonRoot: {{ $svc.runAsNonRoot }}
+            {{- end }}
+            {{- if hasKey $svc "runAsUser" }}
+            runAsUser: {{ $svc.runAsUser }}
+            {{- end }}
+          {{- end }}
           {{- if $svc.command }}
           args:
           {{- if typeIs "string" $svc.command }}
